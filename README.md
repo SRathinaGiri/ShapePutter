@@ -1,6 +1,6 @@
 # Shape Putter
 
-![Shape Putter Gameplay]
+[Shape Putter Gameplay]
 
 A fun and addictive physics-based puzzle game where you must navigate increasingly complex shapes past dangerous obstacles to reach the goal. This game was built with pure HTML5, CSS, and JavaScript.
 
