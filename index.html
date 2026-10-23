@@ -1,28 +1,274 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shape Putter</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="manifest" href="manifest.json">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="3D Shape Putter: flick your shaped puck into the matching hole past holes and moving pucks. 2D, Parallel, Cross-eye, Anaglyph, Smart-glasses and VR stereo modes.">
+  <meta name="theme-color" content="#020617">
+  <title>3D Shape Putter</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ShapePutter3D">
+  <link rel="stylesheet" href="./css/styles.css?v=2.0.0">
+  <!-- Three.js r128, bundled locally so the PWA works fully offline -->
+  <script src="./js/lib/three.min.js"></script>
+  <!-- PeerJS 1.5.5 (MIT, bundled locally): phone-controller pairing only. See js/lib/peerjs.LICENSE.txt -->
+  <script src="./js/lib/peerjs.min.js?v=1.5.5"></script>
 </head>
 <body>
-    <h1>Shape Putter</h1>
-<p>
-    Score: <span id="score-display">0</span> |
-    Level: <span id="level-display">1</span> |
-    Pucks Left: <span id="pucks-display">5</span> |
-    Hits to Life Loss: <span id="hits-display">10</span>
-</p>
-    <canvas id="gameCanvas" width="600" height="600"></canvas>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('Service Worker registered successfully', reg))
-                .catch(err => console.error('Service Worker registration failed', err));
-        }
-    </script>
-    <script src="game.js"></script>
+
+  <!-- ============ PAGE 1: MENU ============ -->
+  <div id="menuPage" class="page">
+    <header class="app-header">
+      <div class="brand-title">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="3" stroke="#c08a55" fill="#0b6a1e"/>
+          <path d="M12 7.5l1.3 2.7 3 .4-2.2 2 .6 3-2.7-1.5-2.7 1.5.6-3-2.2-2 3-.4z" fill="#020617" stroke="#34ff9a" stroke-width="1"/>
+          <circle cx="6.5" cy="17.5" r="2" fill="#fff" stroke="none"/>
+        </svg>
+        <span>3D Shape Putter</span>
+        <span class="version-badge">v2.0.0</span>
+      </div>
+      <div class="header-controls">
+        <button class="icon-btn install-btn" id="installBtn" style="display:none" title="Install as an app on this device">📲 Install app</button>
+        <button class="icon-btn vr-btn" id="webxrBtn" style="display:none" title="Enter immersive VR (Meta Quest browser)">🥽 VR</button>
+        <button class="icon-btn" id="audioToggle" title="Toggle sound (M)">🔊 Sound</button>
+        <button class="icon-btn" id="helpBtn" title="How to play &amp; 3D viewing guide">❓ Guide</button>
+      </div>
+    </header>
+
+    <main class="menu-content">
+      <section class="card hero">
+        <h1 class="title">Shape Putter</h1>
+        <p class="muted">Pull back and release to flick your <strong>white shape</strong> into the
+          <strong class="green">matching hole</strong> in the centre. Fewer shots score more. Dodge the dark holes and the
+          coloured pucks gliding around the board.</p>
+        <button class="action-btn" id="playBtn">▶ Play Level 1</button>
+        <div class="lives-info" id="runInfo"></div>
+        <h3 class="section-h">Levels <span class="section-note">tap to practise</span></h3>
+        <div class="level-grid" id="levelGrid"></div>
+      </section>
+
+      <details class="card fold" data-fold="look">
+        <summary><span class="section-h">🎨 Board &amp; Puck</span><span class="fold-sum" id="sumLook"></span><span class="fold-caret" aria-hidden="true">▾</span></summary>
+        <div class="fold-body">
+        <div class="look-row">
+          <span class="look-label">Board</span>
+          <div class="mode-selector" id="boardSelector" role="radiogroup" aria-label="Board surface"></div>
+        </div>
+        <div class="look-row">
+          <span class="look-label">Puck</span>
+          <div class="mode-selector" id="puckSelector" role="radiogroup" aria-label="Puck type"></div>
+        </div>
+        <div class="look-stats" id="lookStats"></div>
+        </div>
+      </details>
+
+      <details class="card fold" data-fold="controls">
+        <summary><span class="section-h">🎮 Controls</span><span class="fold-sum" id="sumControls"></span><span class="fold-caret" aria-hidden="true">▾</span></summary>
+        <div class="fold-body">
+        <div class="row-wrap">
+          <button class="icon-btn" id="viewModeBtn" title="Camera: Overview / Top-down / Behind the puck (V)">🎥 View: Overview</button>
+          <button class="icon-btn" id="gyroToggle" title="Tilt the phone to aim, tap to shoot">📱 <span id="gyroBadge">Tilt aim: OFF</span></button>
+          <button class="icon-btn" id="invertYBtn">↕️ Invert tilt: OFF</button>
+          <button class="icon-btn" id="guideBtn" title="Dotted path of your shot with cushion bounces (G). Guided clears are capped at ★★.">🎯 Aim guide: OFF</button>
+          <button class="icon-btn" id="phonePadBtn" title="Use a phone on the same Wi-Fi as the controller (e.g. for a TV or smart glasses)">📲 Phone controller</button>
+        </div>
+        <div class="slider-group" title="Degrees of phone tilt for a full-power aim (lower = more sensitive)">
+          <label>Tilt range</label>
+          <input type="range" class="sens-slider" min="8" max="40" step="1" value="20">
+          <span class="val sens-val">20°</span>
+        </div>
+        <p class="hint">Touch / mouse: press anywhere on the board, pull back like a slingshot, release to shoot (further = harder).
+          Keys: <kbd>←</kbd><kbd>→</kbd> aim, <kbd>↑</kbd><kbd>↓</kbd> power, <kbd>Space</kbd> shoot. Gamepad / Quest: stick aims, A or trigger shoots.
+          Tilt aim: tilt the phone towards the shot, tap to shoot.
+          <kbd>P</kbd> pause · <kbd>V</kbd> camera · <kbd>G</kbd> aim guide · <kbd>N</kbd> map (Behind view) · <kbd>C</kbd> re-level tilt.</p>
+        </div>
+      </details>
+
+      <details class="card fold" data-fold="stereo">
+        <summary><span class="section-h">👓 3D Viewing</span><span class="fold-sum" id="sum3d"></span><span class="fold-caret" aria-hidden="true">▾</span></summary>
+        <div class="fold-body">
+        <div class="mode-selector">
+          <button class="mode-btn active" data-mode="2d">2D</button>
+          <button class="mode-btn" data-mode="parallel">Parallel 3D (SBS)</button>
+          <button class="mode-btn" data-mode="cross">Cross-Eye 3D</button>
+          <button class="mode-btn" data-mode="anaglyph">Anaglyph 🔴🔵</button>
+          <button class="mode-btn" data-mode="hsbs" title="Half side-by-side 16:9 for RayNeo / XREAL / Rokid / TCL glasses">Smart Glasses (HSBS)</button>
+        </div>
+        <div class="slider-group" title="Stereo strength (eye separation, scaled to viewing distance)">
+          <label>3D Depth</label>
+          <input type="range" class="depth-slider" min="0" max="3" step="0.05" value="1">
+          <span class="val depth-val">1.00</span>
+        </div>
+        <div class="slider-group" title="Move the zero-parallax (screen) plane nearer (-) or further (+)">
+          <label>Focus</label>
+          <input type="range" class="focus-slider" min="-40" max="40" step="1" value="0">
+          <span class="val focus-val">0%</span>
+        </div>
+        <button class="icon-btn swap-btn">🔄 Swap Eyes</button>
+        </div>
+      </details>
+      <p class="hint reset-line">
+        <button class="link-btn" id="newRunBtn">Start a new run from level 1</button> ·
+        <button class="link-btn" id="resetProgressBtn">Reset all progress</button>
+      </p>
+    </main>
+  </div>
+
+  <!-- ============ PAGE 2: GAME ============ -->
+  <div id="gamePage" class="page hidden">
+    <div class="viewport-frame mode-single" id="viewportFrame">
+      <div class="sbs-divider" id="sbsDivider"></div>
+      <canvas id="gameCanvas"></canvas>
+      <div class="joystick" id="joystick"><div class="knob"></div></div>
+
+      <div class="modal-overlay hidden" id="pauseScreen">
+        <div class="modal-card">
+          <h2 class="title">⚙ 3D &amp; Controls</h2>
+          <div class="mode-selector">
+            <button class="mode-btn" data-mode="2d">2D</button>
+            <button class="mode-btn" data-mode="parallel">Parallel</button>
+            <button class="mode-btn" data-mode="cross">Cross-Eye</button>
+            <button class="mode-btn" data-mode="anaglyph">Anaglyph</button>
+            <button class="mode-btn" data-mode="hsbs">HSBS</button>
+          </div>
+          <div class="slider-group">
+            <label>3D Depth</label>
+            <input type="range" class="depth-slider" min="0" max="3" step="0.05" value="1">
+            <span class="val depth-val">1.00</span>
+          </div>
+          <div class="slider-group">
+            <label>Focus</label>
+            <input type="range" class="focus-slider" min="-40" max="40" step="1" value="0">
+            <span class="val focus-val">0%</span>
+          </div>
+          <div class="slider-group">
+            <label>Tilt range</label>
+            <input type="range" class="sens-slider" min="8" max="40" step="1" value="20">
+            <span class="val sens-val">20°</span>
+          </div>
+          <button class="icon-btn swap-btn">🔄 Swap Eyes</button>
+          <div class="btn-row">
+            <button class="action-btn ghost" id="settingsBackBtn">◀ Back</button>
+            <button class="action-btn" id="resumeBtn">▶ Resume</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="game-toolbar" id="gameBottomToolbar">
+      <div class="group">
+        <button class="icon-btn icon-only" id="gamePauseBtn" title="Pause / 3D settings (P)">⏸️</button>
+        <button class="icon-btn icon-only" id="gameStopBtn" title="Back to menu">⏹️</button>
+      </div>
+      <button class="icon-btn level-btn-big" id="gameRecenterBtn" title="Treat the current phone position as 'no aim' (C)">🎯<span class="lbl"> Re-level</span></button>
+      <div class="group">
+        <button class="icon-btn icon-only" id="gameViewBtn" title="Camera (V)">🎥</button>
+        <button class="icon-btn icon-only" id="gameGyroBtn" title="Tilt aim">📱</button>
+        <button class="icon-btn icon-only" id="gameAudioBtn" title="Sound (M)">🔊</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ GUIDE ============ -->
+  <div class="drawer-overlay hidden" id="infoDrawer">
+    <div class="drawer">
+      <h3>How to play</h3>
+      <ul>
+        <li>Get your <strong>white shape</strong> into the <strong class="green">green-rimmed hole</strong> of the same shape: a circle first, then a square, a triangle, a diamond and stars with more points every level.</li>
+        <li><strong>Aim</strong>: press anywhere on the board, <em>pull back</em> the way you'd pull a slingshot and release. The arrow shows direction and power. You can shoot once the puck has stopped (it glows).</li>
+        <li><strong>Scoring</strong>: 5,000 points on the 1st shot, 4,000 on the 2nd, down to 1,000 on the 5th. ★★★ = hole in one, ★★ = two or three shots.</li>
+        <li><strong>Pucks</strong> (lives): you start with 5 and get a bonus puck on reaching every 5th level. Falling into a <strong class="red">dark hole</strong> costs one; the purple one moves.</li>
+        <li><strong>Moving pucks</strong>: every hit costs 500 points, and every 10th hit in a level costs a puck.</li>
+        <li><strong>Game over</strong>: you go back to your last 🚩 checkpoint (levels 1, 6, 11, …) with the score you had there.</li>
+        <li><strong>Practice</strong>: tap any level you have reached to replay it without risking your run. Stars count; points and pucks don't.</li>
+        <li>A puck that crosses a hole very fast skims over it, like a putt that lips out.</li>
+        <li><strong>🎯 Aim guide</strong> (<kbd>G</kbd>): a dotted path with cushion bounces. Using it caps the level at ★★.</li>
+        <li><strong>⛳ Behind view</strong> (🎥 button or <kbd>V</kbd>): a golf-style camera behind the puck. Aim is relative to the camera, and a north-up board map shows the whole table (<kbd>N</kbd> or the 🗺 icon: off / small / large).</li>
+      </ul>
+      <h3>3D viewing modes</h3>
+      <ul>
+        <li><strong>Parallel 3D</strong>: left image for left eye — cardboard viewers or parallel free-viewing.</li>
+        <li><strong>Cross-Eye 3D</strong>: cross your eyes until a third image fuses in the middle.</li>
+        <li><strong>Anaglyph</strong>: red/cyan glasses.</li>
+        <li><strong>Smart Glasses (HSBS)</strong>: 16:9 half side-by-side for RayNeo Air, XREAL, Rokid, TCL — switch the glasses to 3D SBS mode. Tilt the phone in your hand to aim and tap to shoot, or use a Bluetooth gamepad.</li>
+        <li><strong>🥽 VR</strong>: appears in the Meta Quest browser; the board sits on a virtual table, the thumbstick aims and the trigger shoots.</li>
+        <li><strong>3D Depth</strong> scales with the viewing distance; lower it if your eyes strain. <strong>Focus</strong> moves the screen plane.</li>
+      </ul>
+      <button class="action-btn" id="closeInfoBtn">Got it</button>
+    </div>
+  </div>
+
+  <!-- Install offer (Android/Chrome: system prompt; iPhone/iPad: Add to Home Screen steps) -->
+  <div class="banner-stack">
+  <div id="installBanner" class="update-banner install-banner hidden">
+    <span>📲 Play full-screen and offline: install 3D Shape Putter as an app.</span>
+    <button id="installBannerBtn" class="update-btn">Install</button>
+    <button id="closeInstallBtn" class="update-close" title="Not now">✖</button>
+  </div>
+
+  <div id="updateBanner" class="update-banner hidden">
+    <span>🚀 A new version is ready.</span>
+    <button id="installUpdateBtn" class="update-btn">🔄 Update</button>
+    <button id="closeUpdateBtn" class="update-close" title="Dismiss">✖</button>
+  </div>
+  </div>
+
+  <div class="drawer-overlay hidden" id="linkPanel">
+    <div class="drawer">
+      <h3>📲 Phone controller</h3>
+      <p class="muted">On a phone connected to the <strong>same Wi-Fi</strong>, open:</p>
+      <p class="link-url" id="linkUrl"></p>
+      <p class="muted">and enter this code:</p>
+      <div class="link-code" id="linkCode">······</div>
+      <p class="link-status" id="linkStatus"></p>
+      <p class="hint">Pairing uses the free PeerJS service only to introduce the two devices. After that, aim data goes directly from the phone to this screen over your Wi-Fi.</p>
+      <div class="btn-row">
+        <button class="action-btn" id="linkDoneBtn">Done</button>
+        <button class="action-btn ghost" id="linkStopBtn">Disconnect</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer-overlay hidden" id="iosInstallHelp">
+    <div class="drawer">
+      <h3>📲 Install on iPhone / iPad</h3>
+      <ol class="steps">
+        <li>Open this page in <strong>Safari</strong>.</li>
+        <li>Tap the <strong>Share</strong> button (square with an arrow ↑).</li>
+        <li>Choose <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+      </ol>
+      <p class="hint">The game then opens full-screen from its own icon and works offline.</p>
+      <button class="action-btn" id="closeIosHelpBtn">Got it</button>
+    </div>
+  </div>
+
+  <!-- Every module gets the release version in its URL, so an update can never mix old and new code
+       (HTTP/CDN caches would otherwise serve stale modules next to a fresh app.js). -->
+  <script type="importmap">
+  {
+    "imports": {
+      "./js/config.js": "./js/config.js?v=2.0.0",
+      "./js/levels.js": "./js/levels.js?v=2.0.0",
+      "./js/physics.js": "./js/physics.js?v=2.0.0",
+      "./js/rules.js": "./js/rules.js?v=2.0.0",
+      "./js/renderer.js": "./js/renderer.js?v=2.0.0",
+      "./js/board.js": "./js/board.js?v=2.0.0",
+      "./js/materials.js": "./js/materials.js?v=2.0.0",
+      "./js/controls.js": "./js/controls.js?v=2.0.0",
+      "./js/hud3d.js": "./js/hud3d.js?v=2.0.0",
+      "./js/audio.js": "./js/audio.js?v=2.0.0",
+      "./js/ui.js": "./js/ui.js?v=2.0.0",
+      "./js/link.js": "./js/link.js?v=2.0.0",
+      "./js/progress.js": "./js/progress.js?v=2.0.0"
+    }
+  }
+  </script>
+  <script type="module" src="./js/app.js?v=2.0.0"></script>
 </body>
 </html>
