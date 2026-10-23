@@ -2,6 +2,8 @@
 
 Flick your **white shape** into the **matching hole** in the middle of the board, past dark holes and coloured pucks that glide around. A circle first, then a square, a triangle, a diamond and stars with one more point every level. Fewer shots score more.
 
+**▶ Play: https://srathinagiri.github.io/ShapePutter/** (installable, works offline)
+
 Version 2 is a full 3D rebuild of the original 2D canvas game. The gameplay, shapes, sizes and scoring are the 2D game's; the 3D engine, stereo modes, controls, VR, phone controller and PWA shell come from its sister project [3D Labyrinth](https://github.com/SRathinaGiri/3DLabyrinth).
 
 ## Features
@@ -110,4 +112,5 @@ js/app.js       game loop, aiming, cameras, level lifecycle, WebXR, service work
 * S. Rathinagiri (**SRathinagiri**)
 * 2D version: **Coding Partner**, an AI assistant from Google. 3D version: built with Claude Code.
 
-three.js (r128) and PeerJS (1.5.5) are MIT-licensed and bundled unmodified in `js/lib`.
+## License
+[MIT](LICENSE) © 2025-2026 S Rathinagiri. three.js (r128, © three.js authors) and PeerJS (1.5.5, © Michelle Bu and Eric Zhang) are also MIT-licensed and bundled unmodified in `js/lib`.
