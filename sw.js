@@ -1,35 +1,73 @@
-const CACHE_NAME = 'shape-putter-v1';
-const assetsToCache = [
-    '/',
-    'index.html',
-    'rules.html',
-    'style.css',
-    'game.js',
-    'images/icon-192.png',
-    'images/icon-512.png',
-    'sounds/click.mp3',
-    'sounds/clack.mp3',
-    'sounds/swoosh.mp3',
-    'sounds/plonk.mp3',
-    'sounds/life.mp3'
+// Service Worker for 3D Shape Putter PWA (network-first, offline fallback; pattern from 3D Labyrinth)
+const CACHE_PREFIX = 'shapeputter-';
+const CACHE_VERSION = 'shapeputter-v2.0.0';
+const ASSETS_TO_CACHE = [
+  './',
+  './index.html',
+  './css/styles.css',
+  './js/lib/three.min.js',
+  './js/lib/peerjs.min.js',
+  './js/app.js',
+  './js/config.js',
+  './js/levels.js',
+  './js/physics.js',
+  './js/rules.js',
+  './js/renderer.js',
+  './js/board.js',
+  './js/controls.js',
+  './js/hud3d.js',
+  './js/audio.js',
+  './js/ui.js',
+  './js/materials.js',
+  './js/link.js',
+  './js/progress.js',
+  './js/pad.js',
+  './controller.html',
+  './manifest.json',
+  './assets/favicon.svg',
+  './assets/icon-192.png',
+  './assets/icon-512.png',
+  './assets/icon-maskable-192.png',
+  './assets/icon-maskable-512.png',
+  './assets/apple-touch-icon.png'
 ];
 
-// Install event: cache all assets
 self.addEventListener('install', event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => {
-                return cache.addAll(assetsToCache);
-            })
-    );
+  event.waitUntil(
+    // cache: 'reload' = straight from the network: the HTTP cache may still hold the previous release
+    caches.open(CACHE_VERSION)
+      .then(cache => cache.addAll(ASSETS_TO_CACHE.map(u => new Request(u, { cache: 'reload' }))))
+      .catch(err => console.warn('[SW] pre-cache:', err))
+  );
 });
 
-// Fetch event: serve assets from cache if available
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys()
+      // Only our own old caches: the other games on the same github.io origin keep their offline copies.
+      // The 2D game's 'shape-putter-v1' cache is ours too, so it goes.
+      .then(names => Promise.all(names.filter(n => (n.startsWith(CACHE_PREFIX) || n === 'shape-putter-v1') && n !== CACHE_VERSION).map(n => caches.delete(n))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 self.addEventListener('fetch', event => {
-    event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                return response || fetch(event.request);
-            })
-    );
+  if (event.request.method !== 'GET') return;
+  // Revalidate with the server ('no-cache'): otherwise the HTTP cache can serve stale ES modules
+  // after an update and mix old and new code. Navigations can't take a RequestInit, so fetch them as-is.
+  const req = event.request;
+  const network = req.mode === 'navigate' ? fetch(req) : fetch(req, { cache: 'no-cache' });
+  event.respondWith(
+    network.then(res => {
+      if (res && res.status === 200 && res.type === 'basic') {
+        const copy = res.clone();
+        caches.open(CACHE_VERSION).then(cache => cache.put(event.request, copy));
+      }
+      return res;
+    }).catch(() => caches.match(event.request, { ignoreSearch: true }))
+  );
 });
